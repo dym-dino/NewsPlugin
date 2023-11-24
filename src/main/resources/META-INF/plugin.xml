@@ -1,0 +1,19 @@
+<idea-plugin>
+  <id>com.example.iz.ru</id>
+  <name>IZ.ru News</name>
+  <version>1.0</version>
+  <vendor email="support@example.com" url="https://iz.ru">IZ.ru news</vendor>
+
+  <description><![CDATA[ This plugin shows news from IZ.ru]]></description>
+
+  <actions>
+    <group id="IZ.ru news" text="IZ.ru news">
+      <action id="MyPluginAction" class="NewsPlugin" text="IZ.ru news"/>
+    </group>
+  </actions>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <toolWindow id="IZ.ru news" factoryClass="NewsPlugin"/>
+  </extensions>
+
+</idea-plugin>
