@@ -4,109 +4,92 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
+import org.jsoup.Jsoup
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.GridLayout
+import java.time.LocalTime
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.Timer
-import java.io.IOException
-import java.net.URL
-import java.net.URLConnection
 
 class NewsPlugin : AnAction(), ToolWindowFactory {
+    // This is a NewsPLugin class, which shows news from IZ.ru in IJ Idea tool window
 
     private var toolWindow: ToolWindow? = null
-    private var memoryLabel: JLabel? = null
-    private var cpuLabel: JLabel? = null
-    private var wifiLabel: JLabel? = null
+    private var newsLabel: JLabel? = null
+    private var news = mutableListOf<String>()
+    private val newsTime = mutableListOf<Long>()
 
     override fun actionPerformed(e: AnActionEvent) {
         // do nothing
     }
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        // tool window setup
         this.toolWindow = toolWindow
 
         val contentFactory = ContentFactory.getInstance()
         val content = contentFactory.createContent(createPanel(), "", false)
         toolWindow.contentManager.addContent(content)
 
-        // Start a timer to update the labels every second
-        Timer(1000) {
-            updateLabels(getMemoryUsage(), getCpuUsage(), measureInternetSpeed())
+        // Start a timer to update the labels every 5 seconds
+        Timer(5000) {
+            updateLabels()
         }.start()
     }
 
     private fun createPanel(): JPanel {
+        // creating panel
         val panel = JPanel(BorderLayout())
+        val infoPanel = JPanel(GridLayout(1, 1))
+        (infoPanel.layout as GridLayout).vgap = 0
 
-        val infoPanel = JPanel(GridLayout(3, 1))
-        (infoPanel.layout as GridLayout).vgap = 0 // Устанавливаем вертикальное расстояние между метками на минимум
-
-        val memoryPanel = JPanel()
-        memoryLabel = JLabel("Memory usage: 0 MB")
-        memoryPanel.add(memoryLabel)
-
-        val cpuPanel = JPanel()
-        cpuLabel = JLabel("CPU usage: 0%")
-        cpuPanel.add(cpuLabel)
-
-        val wiFiPanel = JPanel()
-        wifiLabel = JLabel("Internet speed: 0 Mbps")
-        wiFiPanel.add(wifiLabel)
-
-        infoPanel.add(memoryPanel)
-        infoPanel.add(cpuPanel)
-        infoPanel.add(wiFiPanel)
-
+        val newsPanel = JPanel()
+        newsLabel = JLabel("Нет новых новостей")
+        newsPanel.add(newsLabel)
+        infoPanel.add(newsPanel)
         panel.add(infoPanel, BorderLayout.CENTER)
-
-        panel.preferredSize = Dimension(300, 50)
+        panel.preferredSize = Dimension(400, 300)
 
         return panel
     }
 
+    private fun getNewsList() {
+        // update news list
+        val url = "https://iz.ru/news"
+        val doc = Jsoup.connect(url).get()
+        val jspPaneDiv = doc.select("div.short-last-news")
+        val liList = jspPaneDiv.select("li")
 
-    private fun getCpuUsage(): Double {
-        val mxBean =
-            java.lang.management.ManagementFactory.getOperatingSystemMXBean() as com.sun.management.OperatingSystemMXBean
-        val cpuUsage = mxBean.processCpuLoad
-        return cpuUsage * 100
-    }
 
-    private fun getMemoryUsage(): Long {
-        val runtime = Runtime.getRuntime()
-        val totalMemory = runtime.totalMemory()
-        val freeMemory = runtime.freeMemory()
-        return (totalMemory - freeMemory) / (1024 * 1024)
-    }
+        for (li in liList.reversed()) {
+            var text = li.text()
+            val time = text.substring(text.length - 5, text.length)
+            var seconds = time.substring(0, 2).toLong() * 3600
+            seconds += time.substring(3, 5).toLong() * 60
 
-    private fun measureInternetSpeed(): Double {
-        try {
-            val url = URL("http://speedtest.tele2.net/1MB.zip") // URL для загрузки файла для измерения скорости
-            val connection: URLConnection = url.openConnection()
-            val startTime = System.currentTimeMillis()
-            connection.getInputStream().readAllBytes() // Загрузка файла для измерения времени
-            val endTime = System.currentTimeMillis()
-            val downloadTime = (endTime - startTime) / 1000.0 // Время загрузки файла в секундах
-            val fileSizeInMB = 1 // Размер файла для загрузки в мегабайтах
-            return fileSizeInMB / downloadTime // Вычисление скорости интернета в мегабайтах в секунду
-        } catch (e: IOException) {
-            e.printStackTrace()
+            text = time + ": " + text.substring(0, text.length - 5)
+            if (text !in this.news) {
+                this.news.add(text)
+                this.newsTime.add(seconds)
+            }
         }
-        return 0.0
     }
 
-    private fun updateLabels(memoryUsage: Long, cpuUsage: Double, internetSpeed: Double) {
-        when (memoryUsage){
-            in 1..1024 -> memoryLabel?.text = "Memory usage: ${memoryUsage} bytes"
-            in 1025..1024*1024 ->  memoryLabel?.text = "Memory usage: ${memoryUsage / 1024} Kb"
-            else -> memoryLabel?.text = "Memory usage: ${memoryUsage / 1024 / 1024} MB"
+    private fun updateLabels() {
+        // update label content
+        getNewsList()
+        val newsText = StringBuilder()
+        val time = LocalTime.now().toSecondOfDay()
+        for (i in this.news.size - 1 downTo this.news.size - 10) {
+            if (time - this.newsTime[i] > 600 || this.newsTime[i] + 600 >= 24 * 3_600) {
+                newsText.append(this.news[i]).append("<br>")
+            } else {
+                newsText.append("•${this.news[i]}").append("<br>")
+            }
         }
-
-        cpuLabel?.text = "CPU usage: ${String.format("%.2f", cpuUsage)}%"
-        wifiLabel?.text = "Internet speed: ${String.format("%.2f", internetSpeed)} Mbps"
+        newsLabel?.text = "<html>$newsText</html>"
     }
 
 }
